@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SOS-Бот — Жест помощи</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 20px; }
+    video, canvas { width: 300px; border: 2px solid #ccc; border-radius: 10px; }
+    #status, #alert { font-size: 1.2em; margin-top: 10px; white-space: pre-line; }
+    button { padding: 10px 20px; font-size: 1em; margin-top: 10px; }
+    #alert { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>SOS-Бот — Помощь рядом</h1>
+
+  <div id="webcam"></div>
+  <div id="status">⏳ Загрузка модели...</div>
+  <div id="alert"></div>
+
+  <!-- Подключение TensorFlow.js и Teachable Machine -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+
+  <audio id="siren" src="siren.mp3" preload="auto"></audio> <!-- Добавлен тег для звука -->
+
+  <script>
+    const URL = "https://anara854.github.io/bot20-25/";
+    let model, webcam, maxPredictions;
+
+    async function init() {
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
+      try {
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
+
+        webcam = new tmImage.Webcam(300, 300, true);
+        await webcam.setup();
+        await webcam.play();
+        document.getElementById("webcam").appendChild(webcam.canvas);
+        document.getElementById("status").textContent = "✅ Модель загружена, идёт распознавание...";
+        window.requestAnimationFrame(loop);
+      } catch (error) {
+        document.getElementById("status").textContent = "❌ Ошибка загрузки модели";
+        console.error("Ошибка загрузки модели:", error);
+      }
+    }
+
+    async function loop() {
+      webcam.update();
+      await predict();
+      window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+      const prediction = await model.predict(webcam.canvas);
+      const topPrediction = prediction.reduce((max, p) => p.probability > max.probability ? p : max);
+      const confidence = (topPrediction.probability * 100).toFixed(1);
+      const className = topPrediction.className;
+
+      console.log(`Предсказанный класс: ${className}, уверенность: ${confidence}%`); // Логирование
+
+      document.getElementById("status").textContent = `🔍 Класс: ${className} (${confidence}%)`;
+
+      // Проверим, совпадает ли предсказанный класс с "Класс 1"
+      if (className === "Класс 1" && topPrediction.probability > 0.95) {
+        document.getElementById("alert").textContent = "⚠️ Обнаружен Класс 1!";
+        playSound();  // Воспроизвести звук при обнаружении класса 1
+      } else {
+        document.getElementById("alert").textContent = "";
+      }
+    }
+
+    function playSound() {
+      var audio = document.getElementById("siren");
+      audio.play()
+        .then(() => {
+          console.log("Звук проигрывается");
+        })
+        .catch((error) => {
+          console.error("Ошибка воспроизведения звука:", error);
+        });
+    }
+
+    init();
+  </script>
+</body>
+</html>
